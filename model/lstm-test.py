@@ -10,6 +10,7 @@ import torch.nn as nn
 column_names = ['YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH']
 mdata = pandas.read_csv('data/historical/meteorological_cleaned.csv', names=column_names, header=0)
 mdata.head()
+mdata = mdata.drop(columns = ['YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
 
 # Prepare the history data
 history = list(mdata['RAINFALL'])
@@ -30,6 +31,7 @@ def create_sequences(data, seq_length):
 
 # Preprocess the historical data
 seq_length = 100
+target_index = mdata.columns.get_loc('RAINFALL')
 X, y = create_sequences(history_scaled, seq_length)  # Use scaled data
 
 # Split the data into training and testing sets
@@ -65,15 +67,15 @@ class LSTM(nn.Module):
         return out
 
 # Initialize the LSTM model
-input_size = 1
+input_size = X_train.shape[2]
 hidden_size = 16
 num_layers = 1
 output_size = 1
 model = LSTM(input_size, hidden_size, num_layers, output_size)
 
 # Set training parameters
-learning_rate = 0.01
-num_epochs = 1000
+learning_rate = 0.1
+num_epochs = 500
 
 # Define loss function and optimizer
 criterion = nn.MSELoss()
