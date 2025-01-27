@@ -4,16 +4,18 @@ import pandas
 import numpy
 import torch
 import torch.nn as nn
+import math
+from sklearn.metrics import mean_absolute_error,mean_squared_error
 
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
 # Load the data
-column_names = ['YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH']
-mdata = pandas.read_csv('data/historical/meteorological_cleaned.csv', names=column_names, header=0)
+column_names = ['YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue']
+mdata = pandas.read_csv('data/historical/csv_files/weather_searches.csv', names=column_names, header=0)
 mdata.head()
 mdata = mdata.drop(columns = ['YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
 
 # Prepare the history data
-history = list(mdata['RAINFALL'])
+history = list(mdata['TMEAN'])
 
 # Scale the data
 scaler = MinMaxScaler()
@@ -31,7 +33,7 @@ def create_sequences(data, seq_length):
 
 # Preprocess the historical data
 seq_length = 100
-target_index = mdata.columns.get_loc('RAINFALL')
+target_index = mdata.columns.get_loc('TMEAN')
 X, y = create_sequences(history_scaled, seq_length)  # Use scaled data
 
 # Split the data into training and testing sets
@@ -94,9 +96,10 @@ for epoch in range(num_epochs):
     curLoss = loss.item()
     if(curLoss > bestLoss):
         continue
+    if(bestLoss > curLoss):
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Improvement: {bestLoss - curLoss:.8f}")
     bestLoss = min(curLoss, curLoss)
-    if(bestLoss == curLoss):
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
+        
 
 # Evaluate the model on the test set
 with torch.no_grad():
@@ -116,11 +119,37 @@ all_outputs = numpy.concatenate((train_outputs, test_outputs))
 test_start_index = len(history_scaled) - len(y_test) - seq_length
 
 # Plot the true values and the predictions
+# Calculate the index where the test set starts
+test_start_index = len(history) - len(y_test) - seq_length
+
+torch.save(model.state_dict(), "lstm_model_full.pth")
+
+mae = mean_absolute_error(y_test.numpy(), test_outputs)
+mse = mean_squared_error(y_test.numpy(), test_outputs)
+rmse = numpy.sqrt(mse)
+
+mae_baseline = mean_absolute_error(y_test.numpy(), [numpy.mean(history_scaled)] * len(test_outputs))
+mse_baseline = mean_squared_error(y_test.numpy(), [numpy.mean(history_scaled)] * len(test_outputs))
+rmse_baseline = math.sqrt(mse_baseline)
+
+print("==========================")
+print(f"MAE: {mae}")
+print(f"Baseline MAE: {mae_baseline}")
+print("==========================")
+print(f"MSE: {mse}")
+print(f"Baseline MSE: {mse_baseline}")
+print("==========================")
+print(f"RMSE: {rmse}")
+print(f"Baseline RMSE: {rmse_baseline}")
+print("==========================")
+print(f'Mean of TMEAN: {mdata["TMEAN"].mean()}')
+
+# Plot the true values
 plt.plot(history_scaled, label="True Values")
-plt.plot(range(seq_length, seq_length + len(all_outputs)), all_outputs, label="Predictions")
-plt.axvline(x=test_start_index, color='gray', linestyle='--', label="Test set start")
+plt.plot(range(test_start_index, test_start_index + len(test_outputs)), test_outputs, label="Test Predictions", color="orange")
+plt.axvline(x=test_start_index, color='gray', linestyle='--', label="Test Set Start")
 plt.xlabel("Time")
 plt.ylabel("Value")
 plt.legend()
-plt.title("LSTM Predictions vs True Values")
+plt.title("LSTM Predictions")
 plt.show()
