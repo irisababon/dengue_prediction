@@ -25,6 +25,7 @@ temp_train['TMEAN'].plot(legend=True, label='TRAIN')
 temp_test['TMEAN'].plot(legend=True, label='TEST')
 test_predictions.plot(legend=True, label='PREDICTION')
 plt.title('Train, Test and Predicted Test using Holt Winters')
+plt.show()
 
 temp_test = temp_test['TMEAN']
 test_predictions.index = temp_test.index
