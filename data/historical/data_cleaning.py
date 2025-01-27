@@ -3,12 +3,12 @@ import pandas
 import numpy
 
 column_names = ['YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH']
-mdata = pandas.read_csv('data/historical/meteorological.csv', names=column_names, header=0)
+mdata = pandas.read_csv('data/historical/csv_files/meteorological.csv', names=column_names, header=0)
 mdata.head()
 
 mdata.replace(-999, numpy.nan, inplace=True)
 mdata.fillna(method='ffill', inplace=True)
-mdata.to_csv('data/historical/meteorological_cleaned.csv', index=False)
+mdata.to_csv('data/historical/csv_files/meteorological_cleaned.csv', index=False)
 
 #*=====================================*
 #*   data visualization for testing    *
