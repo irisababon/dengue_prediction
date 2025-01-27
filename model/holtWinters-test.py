@@ -7,12 +7,12 @@ from sklearn.metrics import mean_absolute_error,mean_squared_error
 
 # data ========================================================================================================================
 column_names = ['YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH']
-mdata = pandas.read_csv('data/historical/meteorological_cleaned.csv', names=column_names, header=0)
+mdata = pandas.read_csv('data/historical/csv_files/2010meteorological_cleaned.csv', names=column_names, header=0)
 mdata.head()
 mdata = mdata.drop(columns = ['YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
 
 # parameters ==================================================================================================================
-mdata.index.freq = 'MS'
+mdata.index.freq = 'D'
 train_size = int(len(mdata) * 0.7)
 temp_train, temp_test = mdata[:train_size], mdata[train_size:]
 m = 12
