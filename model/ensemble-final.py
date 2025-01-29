@@ -126,7 +126,7 @@ rmse2 = numpy.sqrt(mse2)
 # 97.028% LSTM was best for MAE (no covid)
 # 95.629% LSTM was best for RMSE/MSE (no covid)
 
-# numModels = 100000
+# numModels = 10000
 
 # ensembleModels = [None for _ in range(numModels)]
 # MAE = [None for _ in range(numModels)]
@@ -137,8 +137,8 @@ rmse2 = numpy.sqrt(mse2)
 #     if not i % 3000:
 #         print("ON", i)
 #     ensembleModels[i] = lstm_predictions * i/numModels + hw_predictions * (numModels-i)/numModels
-#     MAE[i] = mean_absolute_error(hw_test[:-14],ensembleModels[i])
-#     MSE[i] = mean_squared_error(hw_test[:-14],ensembleModels[i])
+#     MAE[i] = mean_absolute_error(hw_test[:-30],ensembleModels[i])
+#     MSE[i] = mean_squared_error(hw_test[:-30],ensembleModels[i])
 #     RMSE[i] = numpy.sqrt(MSE[i])
     
 # bestMAE = MAE.index(min(MAE))
@@ -157,16 +157,22 @@ print(f"Baseline MAE: {mae_baseline}")
 print(f"MAE optimized model: {mae1}")
 print(f"MSE optimized model: {mae2}")
 # print(f"Best MAE: model {bestMAE+1} with {MAE[bestMAE]}")
+# print(f"Worst MAE: model {worstMAE+1} with {MAE[worstMAE]}")
+
 print("==========================")
 print(f"Baseline MSE: {mse_baseline}")
 print(f"MAE optimized model: {mse1}")
 print(f"MSE optimized model: {mse2}")
 # print(f"Best MSE: model {bestMSE+1} with {MAE[bestMSE]}")
+# print(f"Worst MSE: model {worstMSE+1} with {MAE[worstMSE]}")
+
 print("==========================")
 print(f"Baseline RMSE: {rmse_baseline}")
 print(f"MAE optimized model: {rmse1}")
 print(f"MSE optimized model: {rmse2}")
 # print(f"Best RMSE: model {bestRMSE+1} with {MAE[bestRMSE]}")
+# print(f"Worst RMSE: model {worstRMSE+1} with {MAE[worstRMSE]}")
+
 print("==========================")
 print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
@@ -177,6 +183,9 @@ hw_test.plot(legend=True, label='TEST')
 #ensemble1.plot(legend=True, label='ENSEMBLE 1')
 ensembleMAE.plot(legend=True, label='MAE-OPTIMIZED MODEL')
 ensembleMSE.plot(legend=True, label='MSE-OPTIMIZED MODEL')
+# ensembleModels[bestMAE].plot(legend=True, label="BEST MAE")
+# ensembleModels[worstMAE].plot(legend=True, label="WORST MAE")
+
 
 plt.title('Ensemble Comparison')
 plt.show()
