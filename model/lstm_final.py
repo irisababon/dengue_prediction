@@ -7,15 +7,17 @@ import torch.nn as nn
 import math
 from sklearn.metrics import mean_absolute_error,mean_squared_error
 
+print("BEGIN TRAINING")
+
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
 # Load the data
-column_names = ['YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue']
-mdata = pandas.read_csv('data/historical/csv_files/weather_searches.csv', names=column_names, header=0)
+column_names = ['date', 'YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue', 'Cases', 'searches']
+mdata = pandas.read_csv('../data/historical/csv_files/final.csv', names=column_names, header=0)
 mdata.head()
-mdata = mdata.drop(columns = ['YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
+mdata = mdata.drop(columns = ['date', 'YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
 
 # Prepare the history data
-history = list(mdata['TMEAN'])
+history = list(mdata['Cases'])
 
 # Scale the data
 scaler = MinMaxScaler()
@@ -33,13 +35,15 @@ def create_sequences(data, seq_length):
 
 # Preprocess the historical data
 seq_length = 100
-target_index = mdata.columns.get_loc('TMEAN')
+target_index = mdata.columns.get_loc('Cases')
 X, y = create_sequences(history_scaled, seq_length)  # Use scaled data
 
 # Split the data into training and testing sets
 train_size = int(len(y) * 0.7)
 X_train, X_test = X[:train_size], X[train_size:]
+# X_test, X_train = X[:train_size], X[train_size:]
 y_train, y_test = y[:train_size], y[train_size:]
+# y_test, y_train = y[:train_size], y[train_size:]
 
 # Convert to PyTorch tensors
 X_train = torch.from_numpy(X_train).float()
@@ -53,12 +57,13 @@ X_test = X_test.reshape(X_test.shape[0], seq_length, 1)  # [batch_size, seq_leng
 
 # Define the LSTM model
 class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, output_size):
+    def __init__(self, input_size, hidden_size, num_layers, output_size, dropout):
         super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, output_size)
+        self.dropout = dropout
 
     def forward(self, x):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
@@ -73,18 +78,26 @@ input_size = X_train.shape[2]
 hidden_size = 16
 num_layers = 1
 output_size = 1
-model = LSTM(input_size, hidden_size, num_layers, output_size)
+dropout = 0.5   # probability of dropout, so this should be in [0,1]
+model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
 
 # Set training parameters
-learning_rate = 0.1
+learning_rate = 0.001
 num_epochs = 500
 
 # Define loss function and optimizer
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-# Train the model
+
+# Tracking loss to make sure we are not overfitting!
+train_losses = []
+val_losses = []
+
+# training loop
 bestLoss = 1e9
+patience = 12 # if it goes down this may times in a row we should stop before it goes insane
+tick = 0
 for epoch in range(num_epochs):
     outputs = model(X_train).squeeze()  # Pass the input through the model
     optimizer.zero_grad()  # Zero the gradients
@@ -92,14 +105,26 @@ for epoch in range(num_epochs):
     loss.backward()  # Backpropagation
     optimizer.step()  # Update the weights
 
-    # Print the loss every 10 epochs
+    # track loss
+    model.eval()
+    with torch.no_grad():
+        val_outputs = model(X_test).squeeze()
+        val_loss = criterion(val_outputs, y_test.squeeze())
+
+    train_losses.append(loss.item())
+    val_losses.append(val_loss.item())
+
     curLoss = loss.item()
     if(curLoss > bestLoss):
+        tick += 1
         continue
-    if(bestLoss > curLoss):
+    if(bestLoss > curLoss): # there has been an improvement!
+        tick = 0
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Improvement: {bestLoss - curLoss:.8f}")
     bestLoss = min(curLoss, curLoss)
-        
+    if(tick > patience):
+        print("PATIENCE EXHAUSTED. ENDING HERE.")
+        break
 
 # Evaluate the model on the test set
 with torch.no_grad():
@@ -115,14 +140,11 @@ with torch.no_grad():
 
 all_outputs = numpy.concatenate((train_outputs, test_outputs))
 
-# Calculate the index where the test set starts
+
 test_start_index = len(history_scaled) - len(y_test) - seq_length
+# test_start_index = 0
 
-# Plot the true values and the predictions
-# Calculate the index where the test set starts
-test_start_index = len(history) - len(y_test) - seq_length
-
-torch.save(model.state_dict(), "lstm_model_full.pth")
+torch.save(model.state_dict(), "denguePrediction1.pth")
 
 mae = mean_absolute_error(y_test.numpy(), test_outputs)
 mse = mean_squared_error(y_test.numpy(), test_outputs)
@@ -131,6 +153,8 @@ rmse = numpy.sqrt(mse)
 mae_baseline = mean_absolute_error(y_test.numpy(), [numpy.mean(history_scaled)] * len(test_outputs))
 mse_baseline = mean_squared_error(y_test.numpy(), [numpy.mean(history_scaled)] * len(test_outputs))
 rmse_baseline = math.sqrt(mse_baseline)
+
+# ==============================================================================
 
 print("==========================")
 print(f"MAE: {mae}")
@@ -142,7 +166,7 @@ print("==========================")
 print(f"RMSE: {rmse}")
 print(f"Baseline RMSE: {rmse_baseline}")
 print("==========================")
-print(f'Mean of TMEAN: {mdata["TMEAN"].mean()}')
+print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
 # Plot the true values
 plt.plot(history_scaled, label="True Values")
@@ -152,4 +176,14 @@ plt.xlabel("Time")
 plt.ylabel("Value")
 plt.legend()
 plt.title("LSTM Predictions")
+plt.show()
+
+# Plotting loss (for overfitting checks)
+# generally you want them both to descend smoothly
+plt.plot(train_losses, label="Train Loss")
+plt.plot(val_losses, label="Validation Loss")
+plt.xlabel("Epochs")
+plt.ylabel("Loss")
+plt.legend()
+plt.title("Training vs Validation Loss Curve")
 plt.show()

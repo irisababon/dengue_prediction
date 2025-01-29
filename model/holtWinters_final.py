@@ -6,10 +6,10 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from sklearn.metrics import mean_absolute_error,mean_squared_error
 
 # data ========================================================================================================================
-column_names = ['YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH']
-mdata = pandas.read_csv('data/historical/csv_files/2010meteorological_cleaned.csv', names=column_names, header=0)
+column_names = ['date', 'YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue', 'Date', 'Cases']
+mdata = pandas.read_csv('data/historical/csv_files/final.csv', names=column_names, header=0)
 mdata.head()
-mdata = mdata.drop(columns = ['YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
+mdata = mdata.drop(columns = ['date', 'YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION', 'Date'])
 
 # parameters ==================================================================================================================
 mdata.index.freq = 'D'
@@ -19,23 +19,23 @@ m = 12
 alpha = 1/(2*m)
 
 # holt winters es =============================================================================================================
-fitted_model = ExponentialSmoothing(temp_train['TMEAN'], trend='add', seasonal='add', seasonal_periods=365).fit()
+fitted_model = ExponentialSmoothing(temp_train['Cases'], trend='add', seasonal='add', seasonal_periods=365).fit()
 test_predictions = fitted_model.forecast(len(temp_test))
-temp_train['TMEAN'].plot(legend=True, label='TRAIN')
-temp_test['TMEAN'].plot(legend=True, label='TEST')
+temp_train['Cases'].plot(legend=True, label='TRAIN')
+temp_test['Cases'].plot(legend=True, label='TEST')
 test_predictions.plot(legend=True, label='PREDICTION')
 plt.title('Train, Test and Predicted Test using Holt Winters')
 plt.show()
 
-temp_test = temp_test['TMEAN']
+temp_test = temp_test['Cases']
 test_predictions.index = temp_test.index
 
 # evaluation ==================================================================================================================
 print(f'Mean Absolute Error = {mean_absolute_error(temp_test,test_predictions)}')
 print(f'Mean Squared Error = {mean_squared_error(temp_test,test_predictions)}')
 # baselines
-baseline_mae = mean_absolute_error(temp_test, [temp_train['TMEAN'].mean()] * len(temp_test))
-baseline_mse = mean_squared_error(temp_test, [temp_train['TMEAN'].mean()] * len(temp_test))
+baseline_mae = mean_absolute_error(temp_test, [temp_train['Cases'].mean()] * len(temp_test))
+baseline_mse = mean_squared_error(temp_test, [temp_train['Cases'].mean()] * len(temp_test))
 print(f"Baseline MAE (mean): {baseline_mae}")
 print(f"Baseline MSE (mean): {baseline_mse}")
-print(f'Mean of TMEAN: {mdata["TMEAN"].mean()}')
+print(f'Mean of dengue case count: {mdata["Cases"].mean()}')
