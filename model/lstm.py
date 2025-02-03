@@ -82,7 +82,7 @@ model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
 
 # Set training parameters
 learning_rate = 0.001
-num_epochs = 500
+num_epochs = 100
 
 # Define loss function and optimizer
 criterion = nn.MSELoss()
@@ -95,7 +95,7 @@ val_losses = []
 
 # training loop
 bestLoss = 1e9
-patience = 12 # if it goes down this may times in a row we should stop before it goes insane
+patience = 5 # if it goes down this may times in a row we should stop before it goes insane
 tick = 0
 for epoch in range(num_epochs):
     outputs = model(X_train).squeeze()  # Pass the input through the model
@@ -112,16 +112,20 @@ for epoch in range(num_epochs):
 
     train_losses.append(loss.item())
     val_losses.append(val_loss.item())
+    # if(epoch > 15):
+    #     if(val_losses[-1] > val_losses[-2]):
+    #         print("FAIL. BREAKING")
+    #         break
 
+    # print(tick)
     curLoss = loss.item()
     if(curLoss > bestLoss):
         tick += 1
-        continue
     if(bestLoss > curLoss): # there has been an improvement!
         tick = 0
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Improvement: {bestLoss - curLoss:.8f}")
     bestLoss = min(curLoss, curLoss)
-    if(tick > patience):
+    if(tick >= patience):
         print("PATIENCE EXHAUSTED. ENDING HERE.")
         break
 
@@ -143,7 +147,7 @@ all_outputs = numpy.concatenate((train_outputs, test_outputs))
 test_start_index = len(history_scaled) - len(y_test) - seq_length
 # test_start_index = 0
 
-torch.save(model.state_dict(), "denguePrediction2.pth")
+torch.save(model.state_dict(), "model/testing.pth")
 
 mae = mean_absolute_error(y_test.numpy(), test_outputs)
 mse = mean_squared_error(y_test.numpy(), test_outputs)
@@ -177,6 +181,9 @@ plt.legend()
 plt.title("LSTM Predictions")
 plt.show()
 
+# print("Losses:")
+# print(train_losses)
+# print(val_losses)
 # Plotting loss (for overfitting checks)
 # generally you want them both to descend smoothly
 plt.plot(train_losses, label="Train Loss")
