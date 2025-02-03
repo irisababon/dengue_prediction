@@ -15,11 +15,11 @@ print("BEGIN")
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
 # Load the data
 column_names = ['date', 'YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue', 'Cases', 'searches']
-mdata = pandas.read_csv('../data/historical/csv_files/final.csv', names=column_names, header=0)
+mdata = pandas.read_csv('data/historical/csv_files/final.csv', names=column_names, header=0)
 mdata.head()
 mdata = mdata.drop(columns = ['date', 'YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
 
-mdata2 = pandas.read_csv('../data/historical/csv_files/final.csv', names=column_names, header=0)
+mdata2 = pandas.read_csv('data/historical/csv_files/final.csv', names=column_names, header=0)
 mdata2.head()
 mdata2 = mdata2.drop(columns = ['date', 'YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
 
@@ -84,7 +84,7 @@ learning_rate = 0.01
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(lstm_model.parameters(), lr=learning_rate)
 
-lstm_model.load_state_dict(torch.load('denguePrediction1.pth', weights_only=True))
+lstm_model.load_state_dict(torch.load('model/denguePrediction1.pth', weights_only=True))
 lstm_model.eval()  # Set to evaluation mode
 print("LSTM model loaded.")
 
@@ -114,14 +114,14 @@ ensembleMAE = lstm_predictions * 0.97028 + hw_predictions * (1-0.97028)
 ensembleMSE = lstm_predictions * 0.95629 + hw_predictions * (1-0.95629)
 
 mae1 = mean_absolute_error(hw_test[:-30], ensembleMAE)
-mse1 = mean_squared_error(hw_test[:-30], ensembleMSE)
+mse1 = mean_squared_error(hw_test[:-30], ensembleMAE)
 rmse1 = numpy.sqrt(mse1)
 
-mae2 = mean_absolute_error(hw_test[:-30], ensembleMAE)
+mae2 = mean_absolute_error(hw_test[:-30], ensembleMSE)
 mse2 = mean_squared_error(hw_test[:-30], ensembleMSE)
 rmse2 = numpy.sqrt(mse2)
 
-# Code for checking which proportion of LSTM/H-W ES is best
+# Code for checking which proportion of LSTM/H-W ES is best ====================================================================
 # this found that:
 # 97.028% LSTM was best for MAE (no covid)
 # 95.629% LSTM was best for RMSE/MSE (no covid)
@@ -149,25 +149,18 @@ rmse2 = numpy.sqrt(mse2)
 # worstMSE = MSE.index(max(MSE))
 # worstRMSE = RMSE.index(max(RMSE))
 
-mae_baseline = mean_absolute_error(y_test.numpy(), [numpy.mean(history)] * len(test_outputs))
-mse_baseline = mean_squared_error(y_test.numpy(), [numpy.mean(history)] * len(test_outputs))
-rmse_baseline = math.sqrt(mse_baseline)
-
-print(f"Baseline MAE: {mae_baseline}")
 print(f"MAE optimized model: {mae1}")
 print(f"MSE optimized model: {mae2}")
 # print(f"Best MAE: model {bestMAE+1} with {MAE[bestMAE]}")
 # print(f"Worst MAE: model {worstMAE+1} with {MAE[worstMAE]}")
 
 print("==========================")
-print(f"Baseline MSE: {mse_baseline}")
 print(f"MAE optimized model: {mse1}")
 print(f"MSE optimized model: {mse2}")
 # print(f"Best MSE: model {bestMSE+1} with {MAE[bestMSE]}")
 # print(f"Worst MSE: model {worstMSE+1} with {MAE[worstMSE]}")
 
 print("==========================")
-print(f"Baseline RMSE: {rmse_baseline}")
 print(f"MAE optimized model: {rmse1}")
 print(f"MSE optimized model: {rmse2}")
 # print(f"Best RMSE: model {bestRMSE+1} with {MAE[bestRMSE]}")
