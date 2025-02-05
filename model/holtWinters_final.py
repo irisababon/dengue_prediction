@@ -6,10 +6,9 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from sklearn.metrics import mean_absolute_error,mean_squared_error
 
 # data ========================================================================================================================
-column_names = ['date', 'YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue', 'Date', 'Cases']
-mdata = pandas.read_csv('data/historical/csv_files/final.csv', names=column_names, header=0)
+column_names = ['date','Cases','Rainfall','Temperature','RH','searches1','searches2']
+mdata = pandas.read_csv('data/historical/csv_files/finalSmooth.csv', names=column_names, header=0)
 mdata.head()
-mdata = mdata.drop(columns = ['date', 'YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION', 'Date'])
 
 # parameters ==================================================================================================================
 mdata.index.freq = 'D'

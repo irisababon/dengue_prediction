@@ -11,10 +11,9 @@ print("BEGIN TRAINING")
 
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
 # Load the data
-column_names = ['date', 'YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue', 'Cases', 'searches']
-mdata = pandas.read_csv('../data/historical/csv_files/final.csv', names=column_names, header=0)
+column_names = ['date','Cases','Rainfall','Temperature','RH','searches1','searches2']
+mdata = pandas.read_csv('data/historical/csv_files/finalSmooth.csv', names=column_names, header=0)
 mdata.head()
-mdata = mdata.drop(columns = ['date', 'YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
 
 # Prepare the history data
 history = list(mdata['Cases'])
@@ -144,7 +143,7 @@ all_outputs = numpy.concatenate((train_outputs, test_outputs))
 test_start_index = len(history_scaled) - len(y_test) - seq_length
 # test_start_index = 0
 
-torch.save(model.state_dict(), "denguePrediction1.pth")
+torch.save(model.state_dict(), "denguePrediction2.pth")
 
 mae = mean_absolute_error(y_test.numpy(), test_outputs)
 mse = mean_squared_error(y_test.numpy(), test_outputs)

@@ -15,14 +15,15 @@ print("BEGIN")
 
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
 # Load the data
-column_names = ['date', 'YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue', 'Cases', 'searches']
-mdata = pandas.read_csv('data/historical/csv_files/final.csv', names=column_names, header=0)
+column_names = ['date','Cases','Rainfall','Temperature','RH','searches1','searches2']
+mdata = pandas.read_csv('data/historical/csv_files/finalSmooth.csv', names=column_names, header=0)
 mdata.head()
-mdata = mdata.drop(columns = ['date', 'YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
 
-mdata2 = pandas.read_csv('data/historical/csv_files/final.csv', names=column_names, header=0)
+mdata2 = pandas.read_csv('data/historical/csv_files/finalSmooth.csv', names=column_names, header=0)
 mdata2.head()
-mdata2 = mdata2.drop(columns = ['date', 'YEAR', 'MONTH', 'DAY', 'TMAX', 'TMIN', 'WIND_SPEED', 'WIND_DIRECTION'])
+
+mdata.set_index('date', inplace=True)
+mdata2.set_index('date', inplace=True)
 
 # Prepare the history data
 history = list(mdata['Cases'])
@@ -85,7 +86,7 @@ learning_rate = 0.01
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(lstm_model.parameters(), lr=learning_rate)
 
-lstm_model.load_state_dict(torch.load('model/denguePrediction1.pth', weights_only=True))
+lstm_model.load_state_dict(torch.load('denguePrediction2.pth', weights_only=True))
 lstm_model.eval()  # Set to evaluation mode
 print("LSTM model loaded.")
 
@@ -109,74 +110,108 @@ hw_test = hw_test['Cases']
 hw_predictions.index = hw_test.index
 hw_predictions = hw_predictions[:-30]
 
+# forecasting future values ======================================================================================
+
+forecast_horizon = 1000
+
+last_sequence = history_scaled[-seq_length:].reshape(1, seq_length, 1)
+last_sequence = torch.from_numpy(last_sequence).float()
+
+future_predictions = []
+
+lstm_model.eval()
+
+with torch.no_grad():
+    for i in range(forecast_horizon):
+        next_value = lstm_model(last_sequence).item()
+        future_predictions.append(next_value)
+        next_input = torch.cat((last_sequence[:, 1:, :], torch.tensor([[[next_value]]])), dim=1)
+        last_sequence = next_input
+
+future_predictions_actual = scaler.inverse_transform(numpy.array(future_predictions).reshape(-1, 1)).flatten()
+
+hw_forecast = fitted_model.forecast(forecast_horizon)
+
+plt.plot(mdata['Cases'].values, label="Historical Cases")
+plt.plot(range(len(history), len(history) + forecast_horizon), future_predictions_actual, label="Forecast (Next 100 Days)", color="red")
+plt.axvline(x=len(history), color='gray', linestyle='--', label="Forecast Start")
+plt.xlabel("Time")
+plt.ylabel("Cases")
+plt.legend()
+plt.title("Dengue Cases Forecast for the Next 100 Days")
+plt.show()
+
 # =============================================================================================================================
 
-ensembleMAE = lstm_predictions * 0.97028 + hw_predictions * (1-0.97028)
-ensembleMSE = lstm_predictions * 0.95629 + hw_predictions * (1-0.95629)
+ensembleMAE = future_predictions_actual * 0.97028 + hw_forecast * (1-0.97028)
+ensembleMSE = future_predictions_actual * 0.95629 + hw_forecast * (1-0.95629)
 
-mae1 = mean_absolute_error(hw_test[:-30], ensembleMAE)
-mse1 = mean_squared_error(hw_test[:-30], ensembleMAE)
-rmse1 = numpy.sqrt(mse1)
+# mae1 = mean_absolute_error(hw_test[:-30], ensembleMAE)
+# mse1 = mean_squared_error(hw_test[:-30], ensembleMAE)
+# rmse1 = numpy.sqrt(mse1)
 
-mae2 = mean_absolute_error(hw_test[:-30], ensembleMSE)
-mse2 = mean_squared_error(hw_test[:-30], ensembleMSE)
-rmse2 = numpy.sqrt(mse2)
+# mae2 = mean_absolute_error(hw_test[:-30], ensembleMSE)
+# mse2 = mean_squared_error(hw_test[:-30], ensembleMSE)
+# rmse2 = numpy.sqrt(mse2)
 
-# Code for checking which proportion of LSTM/H-W ES is best ====================================================================
-# this found that:
-# 97.028% LSTM was best for MAE (no covid)
-# 95.629% LSTM was best for RMSE/MSE (no covid)
+# # Code for checking which proportion of LSTM/H-W ES is best ====================================================================
+# # this found that:
+# # 97.028% LSTM was best for MAE (no covid)
+# # 95.629% LSTM was best for RMSE/MSE (no covid)
 
-# numModels = 10000
+# # numModels = 10000
 
-# ensembleModels = [None for _ in range(numModels)]
-# MAE = [None for _ in range(numModels)]
-# MSE = [None for _ in range(numModels)]
-# RMSE = [None for _ in range(numModels)]
+# # ensembleModels = [None for _ in range(numModels)]
+# # MAE = [None for _ in range(numModels)]
+# # MSE = [None for _ in range(numModels)]
+# # RMSE = [None for _ in range(numModels)]
 
-# for i in range(numModels):
-#     if not i % 3000:
-#         print("ON", i)
-#     ensembleModels[i] = lstm_predictions * i/numModels + hw_predictions * (numModels-i)/numModels
-#     MAE[i] = mean_absolute_error(hw_test[:-30],ensembleModels[i])
-#     MSE[i] = mean_squared_error(hw_test[:-30],ensembleModels[i])
-#     RMSE[i] = numpy.sqrt(MSE[i])
+# # for i in range(numModels):
+# #     if not i % 3000:
+# #         print("ON", i)
+# #     ensembleModels[i] = lstm_predictions * i/numModels + hw_predictions * (numModels-i)/numModels
+# #     MAE[i] = mean_absolute_error(hw_test[:-30],ensembleModels[i])
+# #     MSE[i] = mean_squared_error(hw_test[:-30],ensembleModels[i])
+# #     RMSE[i] = numpy.sqrt(MSE[i])
     
-# bestMAE = MAE.index(min(MAE))
-# bestMSE = MSE.index(min(MSE))
-# bestRMSE = RMSE.index(min(RMSE))
+# # bestMAE = MAE.index(min(MAE))
+# # bestMSE = MSE.index(min(MSE))
+# # bestRMSE = RMSE.index(min(RMSE))
     
-# worstMAE = MAE.index(max(MAE))
-# worstMSE = MSE.index(max(MSE))
-# worstRMSE = RMSE.index(max(RMSE))
+# # worstMAE = MAE.index(max(MAE))
+# # worstMSE = MSE.index(max(MSE))
+# # worstRMSE = RMSE.index(max(RMSE))
 
-print(f"MAE optimized model: {mae1}")
-print(f"MSE optimized model: {mae2}")
-# print(f"Best MAE: model {bestMAE+1} with {MAE[bestMAE]}")
-# print(f"Worst MAE: model {worstMAE+1} with {MAE[worstMAE]}")
+# print(f"MAE optimized model: {mae1}")
+# print(f"MSE optimized model: {mae2}")
+# # print(f"Best MAE: model {bestMAE+1} with {MAE[bestMAE]}")
+# # print(f"Worst MAE: model {worstMAE+1} with {MAE[worstMAE]}")
 
-print("==========================")
-print(f"MAE optimized model: {mse1}")
-print(f"MSE optimized model: {mse2}")
-# print(f"Best MSE: model {bestMSE+1} with {MAE[bestMSE]}")
-# print(f"Worst MSE: model {worstMSE+1} with {MAE[worstMSE]}")
+# print("==========================")
+# print(f"MAE optimized model: {mse1}")
+# print(f"MSE optimized model: {mse2}")
+# # print(f"Best MSE: model {bestMSE+1} with {MAE[bestMSE]}")
+# # print(f"Worst MSE: model {worstMSE+1} with {MAE[worstMSE]}")
 
-print("==========================")
-print(f"MAE optimized model: {rmse1}")
-print(f"MSE optimized model: {rmse2}")
-# print(f"Best RMSE: model {bestRMSE+1} with {MAE[bestRMSE]}")
-# print(f"Worst RMSE: model {worstRMSE+1} with {MAE[worstRMSE]}")
+# print("==========================")
+# print(f"MAE optimized model: {rmse1}")
+# print(f"MSE optimized model: {rmse2}")
+# # print(f"Best RMSE: model {bestRMSE+1} with {MAE[bestRMSE]}")
+# # print(f"Worst RMSE: model {worstRMSE+1} with {MAE[worstRMSE]}")
 
-print("==========================")
-print(f'Mean of Cases: {mdata["Cases"].mean()}')
+# print("==========================")
+# print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
 hw_test.plot(legend=True, label='TEST')
 #hw_predictions.plot(legend=True, label='HOLT WINTERS')
 #lstm_predictions = pandas.Series(ensemble1, index=hw_test.index)
 #lstm_predictions.plot(legend=True, label='LSTM')
 #ensemble1.plot(legend=True, label='ENSEMBLE 1')
-ensembleMAE.plot(legend=True, label='MAE-OPTIMIZED MODEL')
-ensembleMSE.plot(legend=True, label='MSE-OPTIMIZED MODEL')
+ensembleMAE.plot(legend=True, label='MODEL 1')
+ensembleMSE.plot(legend=True, label='MODEL 2')
+# future_predictions.plot(legend=True, label='MODEL 2')
+plt.xlabel('Date')
+plt.ylabel('Dengue Case Count')
 # ensembleModels[bestMAE].plot(legend=True, label="BEST MAE")
 # ensembleModels[worstMAE].plot(legend=True, label="WORST MAE")
 
