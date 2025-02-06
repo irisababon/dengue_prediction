@@ -29,12 +29,7 @@ plt.show()
 temp_test = temp_test['Cases']
 test_predictions.index = temp_test.index
 
-# evaluation ==================================================================================================================
+# for testing =================================================================================================================
 print(f'Mean Absolute Error = {mean_absolute_error(temp_test,test_predictions)}')
 print(f'Mean Squared Error = {mean_squared_error(temp_test,test_predictions)}')
-# baselines
-baseline_mae = mean_absolute_error(temp_test, [temp_train['Cases'].mean()] * len(temp_test))
-baseline_mse = mean_squared_error(temp_test, [temp_train['Cases'].mean()] * len(temp_test))
-print(f"Baseline MAE (mean): {baseline_mae}")
-print(f"Baseline MSE (mean): {baseline_mse}")
 print(f'Mean of dengue case count: {mdata["Cases"].mean()}')

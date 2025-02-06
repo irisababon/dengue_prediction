@@ -68,11 +68,13 @@ class LSTM(nn.Module):
         self.dropout = dropout
 
     def forward(self, x):
+        self.dropout_layer = nn.Dropout(dropout)
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
         
         out, _ = self.lstm(x, (h0, c0))
-        out = self.fc(out[:, -1, :])  # Get the output from the last time step
+        out = self.dropout_layer(out[:, -1, :])
+        out = self.fc(out)
         return out
 
 input_size = X_train.shape[2]
@@ -86,7 +88,7 @@ learning_rate = 0.01
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(lstm_model.parameters(), lr=learning_rate)
 
-lstm_model.load_state_dict(torch.load('model/denguePrediction1.pth', weights_only=True))
+lstm_model.load_state_dict(torch.load('model/testing.pth', weights_only=True))
 lstm_model.eval()  # Set to evaluation mode
 print("LSTM model loaded.")
 
