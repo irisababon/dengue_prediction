@@ -153,21 +153,12 @@ mae = mean_absolute_error(y_test.numpy(), test_outputs)
 mse = mean_squared_error(y_test.numpy(), test_outputs)
 rmse = numpy.sqrt(mse)
 
-mae_baseline = mean_absolute_error(y_test.numpy(), [numpy.mean(history_scaled)] * len(test_outputs))
-mse_baseline = mean_squared_error(y_test.numpy(), [numpy.mean(history_scaled)] * len(test_outputs))
-rmse_baseline = math.sqrt(mse_baseline)
-
 # ==============================================================================
 
 print("==========================")
 print(f"MAE: {mae}")
-print(f"Baseline MAE: {mae_baseline}")
-print("==========================")
 print(f"MSE: {mse}")
-print(f"Baseline MSE: {mse_baseline}")
-print("==========================")
 print(f"RMSE: {rmse}")
-print(f"Baseline RMSE: {rmse_baseline}")
 print("==========================")
 print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
