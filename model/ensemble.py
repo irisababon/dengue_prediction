@@ -25,14 +25,12 @@ mdata2.head()
 mdata.set_index('date', inplace=True)
 mdata2.set_index('date', inplace=True)
 
-# Prepare the history data
-history = list(mdata['Cases'])
+history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH', 'searches1', 'searches2']].values
 
-# Scale the data
 scaler = MinMaxScaler()
-history_scaled = scaler.fit_transform(numpy.array(history).reshape(-1, 1))  # Scale the data
+history_scaled = scaler.fit_transform(history)
 
-# LSTM model ==================================================================================================================
+# Create sequences for LSTM
 def create_sequences(data, seq_length):
     xs, ys = [], []
     for i in range(len(data) - seq_length):
@@ -42,22 +40,28 @@ def create_sequences(data, seq_length):
         ys.append(y)
     return numpy.array(xs), numpy.array(ys)
 
-seq_length = 100
+# Preprocess the historical data
+seq_length = 30
 target_index = mdata.columns.get_loc('Cases')
 X, y = create_sequences(history_scaled, seq_length)  # Use scaled data
 
+# Split the data into training and testing sets
 train_size = int(len(y) * 0.7)
 X_train, X_test = X[:train_size], X[train_size:]
 y_train, y_test = y[:train_size], y[train_size:]
 
+# Convert to PyTorch tensors
 X_train = torch.from_numpy(X_train).float()
 y_train = torch.from_numpy(y_train).float()
 X_test = torch.from_numpy(X_test).float()
 y_test = torch.from_numpy(y_test).float()
 
-X_train = X_train.reshape(X_train.shape[0], seq_length, 1)
-X_test = X_test.reshape(X_test.shape[0], seq_length, 1)
+# Reshape the input to match LSTM's expected input shape
+X_train = X_train.reshape(X_train.shape[0], seq_length, X_train.shape[2])  # [batch_size, seq_length, input_size]
+X_test = X_test.reshape(X_test.shape[0], seq_length, X_test.shape[2])  # [batch_size, seq_length, input_size]
 
+# lstm model ========================================================================================================
+# Define the LSTM model
 class LSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size, dropout):
         super(LSTM, self).__init__()
@@ -68,7 +72,10 @@ class LSTM(nn.Module):
         self.dropout = dropout
 
     def forward(self, x):
-        self.dropout_layer = nn.Dropout(dropout)
+        if self.training:
+            self.dropout_layer = nn.Dropout(self.dropout)
+        else:
+            self.dropout_layer = nn.Identity()
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
         c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
         
@@ -78,17 +85,21 @@ class LSTM(nn.Module):
         return out
 
 input_size = X_train.shape[2]
-hidden_size = 16
-num_layers = 1
-output_size = 1
+hidden_size = 64
+num_layers = 2
+output_size = 6
 dropout = 0.5   # probability of dropout, so this should be in [0,1]
 lstm_model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
-learning_rate = 0.01
+learning_rate = 0.001
+num_epochs = 300
 
+# tracking loss  ====================================================================================================
+# Define loss function and optimizer
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(lstm_model.parameters(), lr=learning_rate)
 
-lstm_model.load_state_dict(torch.load('model/testing.pth', weights_only=True))
+
+lstm_model.load_state_dict(torch.load('model/testing300_30sequence.pth', weights_only=True))
 lstm_model.eval()  # Set to evaluation mode
 print("LSTM model loaded.")
 
@@ -96,7 +107,16 @@ with torch.no_grad():
     train_outputs = lstm_model(X_train).squeeze().numpy()
     test_outputs = lstm_model(X_test).squeeze().numpy()
 
-lstm_predictions = scaler.inverse_transform(test_outputs.reshape(-1, 1)).flatten()
+with torch.no_grad():
+    train_outputs = lstm_model(X_train).squeeze()
+    test_outputs = lstm_model(X_test).squeeze()
+    train_outputs_cases = train_outputs[:, 0].numpy()
+    test_outputs_cases = test_outputs[:, 0].numpy()
+
+# Reshape test outputs to match the input size
+test_outputs_cases_reshaped = test_outputs_cases.reshape(-1, 1)
+# Inverse transform only the 'Cases' column of the scaled data
+lstm_predictions = scaler.inverse_transform(numpy.hstack([test_outputs_cases_reshaped, numpy.zeros((test_outputs_cases_reshaped.shape[0], 5))]))[:, 0]
 
 # holt winters es =============================================================================================================
 mdata2.index.freq = 'D'
@@ -114,8 +134,8 @@ hw_predictions = hw_predictions[:-30]
 
 # =============================================================================================================================
 
-ensembleMAE = lstm_predictions * 0.97028 + hw_predictions * (1-0.97028)
-ensembleMSE = lstm_predictions * 0.95629 + hw_predictions * (1-0.95629)
+ensembleMAE = lstm_predictions[:-21] * 0.97028 + hw_predictions * (1-0.97028)
+ensembleMSE = lstm_predictions[:-21] * 0.95629 + hw_predictions * (1-0.95629)
 
 mae1 = mean_absolute_error(hw_test[:-30], ensembleMAE)
 mse1 = mean_squared_error(hw_test[:-30], ensembleMAE)

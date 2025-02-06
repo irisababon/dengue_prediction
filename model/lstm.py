@@ -16,10 +16,10 @@ column_names = ['date','Cases','Rainfall','Temperature','RH','searches1','search
 mdata = pandas.read_csv('data/historical/csv_files/finalSmooth.csv', names=column_names, header=0)
 mdata.head()
 
-history = list(mdata['Cases'])
+history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH', 'searches1', 'searches2']].values
 
 scaler = MinMaxScaler()
-history_scaled = scaler.fit_transform(numpy.array(history).reshape(-1, 1))  # Scale the data
+history_scaled = scaler.fit_transform(history)
 
 # Create sequences for LSTM
 def create_sequences(data, seq_length):
@@ -32,7 +32,7 @@ def create_sequences(data, seq_length):
     return numpy.array(xs), numpy.array(ys)
 
 # Preprocess the historical data
-seq_length = 100
+seq_length = 30
 target_index = mdata.columns.get_loc('Cases')
 X, y = create_sequences(history_scaled, seq_length)  # Use scaled data
 
@@ -48,8 +48,8 @@ X_test = torch.from_numpy(X_test).float()
 y_test = torch.from_numpy(y_test).float()
 
 # Reshape the input to match LSTM's expected input shape
-X_train = X_train.reshape(X_train.shape[0], seq_length, 1)  # [batch_size, seq_length, input_size]
-X_test = X_test.reshape(X_test.shape[0], seq_length, 1)  # [batch_size, seq_length, input_size]
+X_train = X_train.reshape(X_train.shape[0], seq_length, X_train.shape[2])  # [batch_size, seq_length, input_size]
+X_test = X_test.reshape(X_test.shape[0], seq_length, X_test.shape[2])  # [batch_size, seq_length, input_size]
 
 # lstm model ========================================================================================================
 # Define the LSTM model
@@ -73,13 +73,13 @@ class LSTM(nn.Module):
         return out
 
 input_size = X_train.shape[2]
-hidden_size = 16
-num_layers = 1
-output_size = 1
+hidden_size = 64
+num_layers = 2
+output_size = 6
 dropout = 0.5   # probability of dropout, so this should be in [0,1]
 model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
 learning_rate = 0.001
-num_epochs = 500
+num_epochs = 300
 
 # tracking loss  ====================================================================================================
 # Define loss function and optimizer
@@ -97,7 +97,7 @@ tick = 0
 for epoch in range(num_epochs):
     outputs = model(X_train).squeeze()  # Pass the input through the model
     optimizer.zero_grad()  # Zero the gradients
-    loss = criterion(outputs, y_train.squeeze())  # Calculate the loss
+    loss = criterion(outputs, y_train)  # Calculate the loss
     loss.backward()  # Backpropagation
     optimizer.step()  # Update the weights
 
@@ -131,7 +131,9 @@ for epoch in range(num_epochs):
 # Evaluate the model on the test set
 with torch.no_grad():
     test_outputs = model(X_test).squeeze()  # Get the test predictions
-    test_loss = criterion(outputs, y_train.squeeze())  # Squeeze y_train to match the dimensions
+    test_outputs_cases = test_outputs[:, 0].numpy()
+    y_test_cases = y_test[:, 0].numpy()
+    test_loss = criterion(torch.tensor(test_outputs_cases), torch.tensor(y_test_cases))  # Squeeze y_train to match the dimensions
 
     print(f"Test Loss: {test_loss.item():.4f}")
 
@@ -140,13 +142,16 @@ with torch.no_grad():
     train_outputs = model(X_train).squeeze().numpy()
     test_outputs = model(X_test).squeeze().numpy()
 
-all_outputs = numpy.concatenate((train_outputs, test_outputs))
+    train_outputs_cases = train_outputs[:, 0]
+    test_outputs_cases = test_outputs[:, 0]
+
+all_outputs = numpy.concatenate((train_outputs_cases, test_outputs_cases))
 
 
 test_start_index = len(history_scaled) - len(y_test) - seq_length
 # test_start_index = 0
 
-torch.save(model.state_dict(), "model/testing.pth")
+torch.save(model.state_dict(), "model/testing300_30sequence.pth")
 
 mae = mean_absolute_error(y_test.numpy(), test_outputs)
 mse = mean_squared_error(y_test.numpy(), test_outputs)
@@ -161,9 +166,11 @@ print(f"RMSE: {rmse}")
 print("==========================")
 print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
+history_scaled_cases = history_scaled[:, 0]
+
 # Plot the true values
-plt.plot(history_scaled, label="True Values")
-plt.plot(range(test_start_index, test_start_index + len(test_outputs)), test_outputs, label="Test Predictions", color="orange")
+plt.plot(history_scaled_cases, label="True Values")
+plt.plot(range(test_start_index, test_start_index + len(test_outputs_cases)), test_outputs_cases, label="Test Predictions", color="orange")
 plt.axvline(x=test_start_index, color='gray', linestyle='--', label="Test Set Start")
 plt.xlabel("Time")
 plt.ylabel("Value")
