@@ -99,7 +99,7 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(lstm_model.parameters(), lr=learning_rate)
 
 
-lstm_model.load_state_dict(torch.load('model/testing300_30sequence.pth', weights_only=True))
+lstm_model.load_state_dict(torch.load('model/backups/testing300_30sequence.pth', weights_only=True))
 lstm_model.eval()  # Set to evaluation mode
 print("LSTM model loaded.")
 

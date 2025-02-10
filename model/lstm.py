@@ -7,6 +7,8 @@ import torch.nn as nn
 import math
 from sklearn.metrics import mean_absolute_error,mean_squared_error
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
 print("BEGIN TRAINING")
 
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
@@ -51,8 +53,14 @@ y_test = torch.from_numpy(y_test).float()
 X_train = X_train.reshape(X_train.shape[0], seq_length, X_train.shape[2])  # [batch_size, seq_length, input_size]
 X_test = X_test.reshape(X_test.shape[0], seq_length, X_test.shape[2])  # [batch_size, seq_length, input_size]
 
+
+
 # lstm model ========================================================================================================
 # Define the LSTM model
+
+X_train_gpu = X_train.to(device)
+y_train_gpu = y_train.to(device)
+
 class LSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size, dropout):
         super(LSTM, self).__init__()
@@ -79,7 +87,7 @@ output_size = 6
 dropout = 0.5   # probability of dropout, so this should be in [0,1]
 model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
 learning_rate = 0.001
-num_epochs = 300
+num_epochs = 1000
 
 # tracking loss  ====================================================================================================
 # Define loss function and optimizer
@@ -92,7 +100,7 @@ val_losses = []
 
 # training loop =====================================================================================================
 bestLoss = 1e9
-patience = 5 # if it goes down this may times in a row we should stop before it goes insane
+patience = 10 # if it goes down this may times in a row we should stop before it goes insane
 tick = 0
 for epoch in range(num_epochs):
     outputs = model(X_train).squeeze()  # Pass the input through the model
@@ -129,6 +137,10 @@ for epoch in range(num_epochs):
 
 # evaluation ========================================================================================================
 # Evaluate the model on the test set
+
+X_train_cpu = X_train_gpu.cpu()
+y_train_cpu = y_train_gpu.cpu()
+
 with torch.no_grad():
     test_outputs = model(X_test).squeeze()  # Get the test predictions
     test_outputs_cases = test_outputs[:, 0].numpy()
