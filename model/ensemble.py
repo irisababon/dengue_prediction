@@ -25,8 +25,8 @@ mdata2.head()
 mdata.set_index('date', inplace=True)
 mdata2.set_index('date', inplace=True)
 
-history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH', 'searches1', 'searches2']].values
-
+#history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH', 'searches1', 'searches2']].values
+history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH']].values
 scaler = MinMaxScaler()
 history_scaled = scaler.fit_transform(history)
 
@@ -87,11 +87,11 @@ class LSTM(nn.Module):
 input_size = X_train.shape[2]
 hidden_size = 64
 num_layers = 2
-output_size = 6
+output_size = 4
 dropout = 0.5   # probability of dropout, so this should be in [0,1]
 lstm_model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
 learning_rate = 0.001
-num_epochs = 300
+num_epochs = 100
 
 # tracking loss  ====================================================================================================
 # Define loss function and optimizer
@@ -99,11 +99,7 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(lstm_model.parameters(), lr=learning_rate)
 
 
-<<<<<<< HEAD
-lstm_model.load_state_dict(torch.load('model/backups/testing300_30sequence.pth', weights_only=True))
-=======
-lstm_model.load_state_dict(torch.load('model/backups/testing300.pth', weights_only=True))
->>>>>>> 1318563 (used gpu for training)
+lstm_model.load_state_dict(torch.load('model/backups/withoutSearches.pth', weights_only=True))
 lstm_model.eval()  # Set to evaluation mode
 print("LSTM model loaded.")
 
@@ -120,7 +116,7 @@ with torch.no_grad():
 # Reshape test outputs to match the input size
 test_outputs_cases_reshaped = test_outputs_cases.reshape(-1, 1)
 # Inverse transform only the 'Cases' column of the scaled data
-lstm_predictions = scaler.inverse_transform(numpy.hstack([test_outputs_cases_reshaped, numpy.zeros((test_outputs_cases_reshaped.shape[0], 5))]))[:, 0]
+lstm_predictions = scaler.inverse_transform(numpy.hstack([test_outputs_cases_reshaped, numpy.zeros((test_outputs_cases_reshaped.shape[0], 3))]))[:, 0]
 
 # holt winters es =============================================================================================================
 mdata2.index.freq = 'D'
@@ -207,7 +203,7 @@ hw_test.plot(legend=True, label='TEST')
 #ensemble1.plot(legend=True, label='ENSEMBLE 1')
 ensembleMAE.plot(legend=True, label='MODEL 1')
 ensembleMSE.plot(legend=True, label='MODEL 2')
-plt.plot(lstm_forecast, label="Predicted")
+#plt.plot(lstm_forecast, label="Predicted")
 plt.legend()
 plt.show()
 plt.xlabel('Date')

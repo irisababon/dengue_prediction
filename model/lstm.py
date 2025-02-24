@@ -7,28 +7,27 @@ import torch.nn as nn
 import math
 from sklearn.metrics import mean_absolute_error,mean_squared_error
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
 print("BEGIN TRAINING")
 
 device = ""
 if torch.cuda.is_available(): device = "cuda"
 elif torch.mps.is_available(): device = "mps"
 else: device="cpu"
+device
 
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
-
 # data processing ===================================================================================================
 column_names = ['date','Cases','Rainfall','Temperature','RH','searches1','searches2']
 mdata = pandas.read_csv('data/historical/csv_files/finalSmooth.csv', names=column_names, header=0)
 mdata.head()
+mdata['date'] = pandas.to_datetime(mdata['date'])
+mdata.set_index('date', inplace=True)
 
 history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH', 'searches1', 'searches2']].values
 
 scaler = MinMaxScaler()
 history_scaled = scaler.fit_transform(history)
 
-# Create sequences for LSTM
 def create_sequences(data, seq_length):
     xs, ys = [], []
     for i in range(len(data) - seq_length):
@@ -38,38 +37,26 @@ def create_sequences(data, seq_length):
         ys.append(y)
     return numpy.array(xs), numpy.array(ys)
 
-# Preprocess the historical data
 seq_length = 30
 target_index = mdata.columns.get_loc('Cases')
 X, y = create_sequences(history_scaled, seq_length)  # Use scaled data
 
-# Split the data into training and testing sets
 train_size = int(len(y) * 0.7)
 X_train, X_test = X[:train_size], X[train_size:]
 y_train, y_test = y[:train_size], y[train_size:]
 
-# Convert to PyTorch tensors
 X_train = torch.from_numpy(X_train).float()
 y_train = torch.from_numpy(y_train).float()
 X_test = torch.from_numpy(X_test).float()
 y_test = torch.from_numpy(y_test).float()
 
-# Reshape the input to match LSTM's expected input shape
-X_train = X_train.reshape(X_train.shape[0], seq_length, X_train.shape[2])  # [batch_size, seq_length, input_size]
-X_test = X_test.reshape(X_test.shape[0], seq_length, X_test.shape[2])  # [batch_size, seq_length, input_size]
-
-<<<<<<< HEAD
-
-=======
-X_train_gpu = X_train.to(device)
-y_train_gpu = y_train.to(device)
->>>>>>> 1318563 (used gpu for training)
-
-# lstm model ========================================================================================================
-# Define the LSTM model
+X_train = X_train.reshape(X_train.shape[0], seq_length, X_train.shape[2])
+X_test = X_test.reshape(X_test.shape[0], seq_length, X_test.shape[2])
 
 X_train_gpu = X_train.to(device)
 y_train_gpu = y_train.to(device)
+
+# lstm model ======================================================================================================
 
 class LSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size, dropout):
@@ -82,8 +69,8 @@ class LSTM(nn.Module):
 
     def forward(self, x):
         self.dropout_layer = nn.Dropout(dropout)
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size, device=x.device)
         
         out, _ = self.lstm(x, (h0, c0))
         out = self.dropout_layer(out[:, -1, :])
@@ -97,10 +84,9 @@ output_size = 6
 dropout = 0.5   # probability of dropout, so this should be in [0,1]
 model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
 learning_rate = 0.001
-num_epochs = 1000
+num_epochs = 30
 
 # tracking loss  ====================================================================================================
-# Define loss function and optimizer
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -149,10 +135,6 @@ X_train_cpu = X_train_gpu.cpu()
 y_train_cpu = y_train_gpu.cpu()
 
 # evaluation ========================================================================================================
-# Evaluate the model on the test set
-
-X_train_cpu = X_train_gpu.cpu()
-y_train_cpu = y_train_gpu.cpu()
 
 with torch.no_grad():
     test_outputs = model(X_test).squeeze()  # Get the test predictions
@@ -174,13 +156,31 @@ all_outputs = numpy.concatenate((train_outputs_cases, test_outputs_cases))
 
 
 test_start_index = len(history_scaled) - len(y_test) - seq_length
-# test_start_index = 0
 
-torch.save(model.state_dict(), "model/testing300_30sequence.pth")
+torch.save(model.state_dict(), "model/testing300_30sequence2.pth")
 
 mae = mean_absolute_error(y_test.numpy(), test_outputs)
 mse = mean_squared_error(y_test.numpy(), test_outputs)
 rmse = numpy.sqrt(mse)
+
+# forecasting =======================================================================================================
+
+num_forecast_steps = 30
+sequence_to_plot = X_test.squeeze().cpu().numpy()
+historical_data = sequence_to_plot[-1]
+
+forecasted_values = []
+with torch.no_grad():
+    for _ in range(num_forecast_steps):
+        historical_data_tensor = torch.as_tensor(historical_data).float().unsqueeze(0)
+        predicted_value = model(historical_data_tensor).numpy()[0, 0]
+        forecasted_values.append(predicted_value)
+        historical_data = numpy.roll(historical_data, shift=-1)
+        historical_data[-1] = predicted_value
+
+last_date = mdata.index[-1]
+future_dates = pandas.date_range(start=last_date + pandas.DateOffset(1), periods=30)
+
 
 # for testing =======================================================================================================
 
@@ -192,10 +192,21 @@ print("==========================")
 print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
 history_scaled_cases = history_scaled[:, 0]
+target_index = mdata.columns.get_loc('Cases')
+target_min = scaler.data_min_[target_index]
+target_max = scaler.data_max_[target_index]
+forecasted_cases = numpy.array(forecasted_values) * (target_max - target_min) + target_min
+
 
 # Plot the true values
 plt.plot(history_scaled_cases, label="True Values")
 plt.plot(range(test_start_index, test_start_index + len(test_outputs_cases)), test_outputs_cases, label="Test Predictions", color="orange")
+plt.plot(
+    mdata.index[-1:].append(future_dates), 
+    numpy.concatenate([mdata['Cases'][-1:].values, forecasted_cases]),
+    label='forecasted values', 
+    color='red'
+)
 plt.axvline(x=test_start_index, color='gray', linestyle='--', label="Test Set Start")
 plt.xlabel("Time")
 plt.ylabel("Value")
