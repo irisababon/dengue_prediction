@@ -99,7 +99,11 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(lstm_model.parameters(), lr=learning_rate)
 
 
+<<<<<<< HEAD
 lstm_model.load_state_dict(torch.load('model/backups/testing300_30sequence.pth', weights_only=True))
+=======
+lstm_model.load_state_dict(torch.load('model/backups/testing300.pth', weights_only=True))
+>>>>>>> 1318563 (used gpu for training)
 lstm_model.eval()  # Set to evaluation mode
 print("LSTM model loaded.")
 
@@ -145,6 +149,10 @@ mae2 = mean_absolute_error(hw_test[:-30], ensembleMSE)
 mse2 = mean_squared_error(hw_test[:-30], ensembleMSE)
 rmse2 = numpy.sqrt(mse2)
 
+# forecasting ==================================================================================================================
+
+
+
 # Code for checking which proportion of LSTM/H-W ES is best ====================================================================
 # this found that:
 # 97.028% LSTM was best for MAE (no covid)
@@ -153,8 +161,7 @@ rmse2 = numpy.sqrt(mse2)
 # numModels = 10000
 
 # ensembleModels = [None for _ in range(numModels)]
-# MAE = [None for _ in range(numModels)]
-# MSE = [None for _ in range(numModels)]
+# MAE = [None for _ in range(numModels)]te
 # RMSE = [None for _ in range(numModels)]
 
 # for i in range(numModels):
@@ -200,11 +207,13 @@ hw_test.plot(legend=True, label='TEST')
 #ensemble1.plot(legend=True, label='ENSEMBLE 1')
 ensembleMAE.plot(legend=True, label='MODEL 1')
 ensembleMSE.plot(legend=True, label='MODEL 2')
+plt.plot(lstm_forecast, label="Predicted")
+plt.legend()
+plt.show()
 plt.xlabel('Date')
 plt.ylabel('Dengue Case Count')
 # ensembleModels[bestMAE].plot(legend=True, label="BEST MAE")
 # ensembleModels[worstMAE].plot(legend=True, label="WORST MAE")
-
 
 plt.title('Ensemble Comparison')
 plt.show()

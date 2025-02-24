@@ -11,6 +11,11 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 print("BEGIN TRAINING")
 
+device = ""
+if torch.cuda.is_available(): device = "cuda"
+elif torch.mps.is_available(): device = "mps"
+else: device="cpu"
+
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
 
 # data processing ===================================================================================================
@@ -53,7 +58,12 @@ y_test = torch.from_numpy(y_test).float()
 X_train = X_train.reshape(X_train.shape[0], seq_length, X_train.shape[2])  # [batch_size, seq_length, input_size]
 X_test = X_test.reshape(X_test.shape[0], seq_length, X_test.shape[2])  # [batch_size, seq_length, input_size]
 
+<<<<<<< HEAD
 
+=======
+X_train_gpu = X_train.to(device)
+y_train_gpu = y_train.to(device)
+>>>>>>> 1318563 (used gpu for training)
 
 # lstm model ========================================================================================================
 # Define the LSTM model
@@ -135,6 +145,9 @@ for epoch in range(num_epochs):
     #     print("PATIENCE EXHAUSTED. ENDING HERE.")
     #     break
 
+X_train_cpu = X_train_gpu.cpu()
+y_train_cpu = y_train_gpu.cpu()
+
 # evaluation ========================================================================================================
 # Evaluate the model on the test set
 
@@ -151,7 +164,7 @@ with torch.no_grad():
 
 # Concatenate the training and test predictions for plotting
 with torch.no_grad():
-    train_outputs = model(X_train).squeeze().numpy()
+    train_outputs = model(X_train_cpu).squeeze().numpy()
     test_outputs = model(X_test).squeeze().numpy()
 
     train_outputs_cases = train_outputs[:, 0]
