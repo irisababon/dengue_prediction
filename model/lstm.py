@@ -84,7 +84,7 @@ output_size = 6
 dropout = 0.5   # probability of dropout, so this should be in [0,1]
 model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
 learning_rate = 0.001
-num_epochs = 30
+num_epochs = 180
 
 # tracking loss  ====================================================================================================
 criterion = nn.MSELoss()
@@ -157,7 +157,7 @@ all_outputs = numpy.concatenate((train_outputs_cases, test_outputs_cases))
 
 test_start_index = len(history_scaled) - len(y_test) - seq_length
 
-torch.save(model.state_dict(), "model/testing300_30sequence2.pth")
+torch.save(model.state_dict(), "model/forecasting_test1.pth")
 
 mae = mean_absolute_error(y_test.numpy(), test_outputs)
 mse = mean_squared_error(y_test.numpy(), test_outputs)
@@ -165,7 +165,7 @@ rmse = numpy.sqrt(mse)
 
 # forecasting =======================================================================================================
 
-num_forecast_steps = 30
+num_forecast_steps = 500
 sequence_to_plot = X_test.squeeze().cpu().numpy()
 historical_data = sequence_to_plot[-1]
 
@@ -179,7 +179,7 @@ with torch.no_grad():
         historical_data[-1] = predicted_value
 
 last_date = mdata.index[-1]
-future_dates = pandas.date_range(start=last_date + pandas.DateOffset(1), periods=30)
+future_dates = pandas.date_range(start=last_date + pandas.DateOffset(1), periods=num_forecast_steps)
 
 
 # for testing =======================================================================================================
@@ -192,6 +192,11 @@ print("==========================")
 print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
 history_scaled_cases = history_scaled[:, 0]
+
+test_outputs_cases_reshaped = test_outputs_cases.reshape(-1, 1)
+# Inverse transform only the 'Cases' column of the scaled data
+lstm_predictions = scaler.inverse_transform(numpy.hstack([test_outputs_cases_reshaped, numpy.zeros((test_outputs_cases_reshaped.shape[0], 5))]))[:, 0]
+
 target_index = mdata.columns.get_loc('Cases')
 target_min = scaler.data_min_[target_index]
 target_max = scaler.data_max_[target_index]
@@ -199,15 +204,11 @@ forecasted_cases = numpy.array(forecasted_values) * (target_max - target_min) + 
 
 
 # Plot the true values
-plt.plot(history_scaled_cases, label="True Values")
-plt.plot(range(test_start_index, test_start_index + len(test_outputs_cases)), test_outputs_cases, label="Test Predictions", color="orange")
-plt.plot(
-    mdata.index[-1:].append(future_dates), 
-    numpy.concatenate([mdata['Cases'][-1:].values, forecasted_cases]),
-    label='forecasted values', 
-    color='red'
-)
-plt.axvline(x=test_start_index, color='gray', linestyle='--', label="Test Set Start")
+plt.plot(mdata['Cases'], label="True Values")
+plt.plot(mdata.index[-1:].append(future_dates), numpy.concatenate([mdata['Cases'][-1:].values, forecasted_cases]),label='forecasted values', color='red')
+
+#plt.plot(range(test_start_index, test_start_index + len(test_outputs_cases)), test_outputs_cases, label="Test Predictions", color="orange")
+#plt.axvline(x=test_start_index, color='gray', linestyle='--', label="Test Set Start")
 plt.xlabel("Time")
 plt.ylabel("Value")
 plt.legend()

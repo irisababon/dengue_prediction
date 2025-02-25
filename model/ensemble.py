@@ -22,11 +22,13 @@ mdata.head()
 mdata2 = pandas.read_csv('data/historical/csv_files/finalSmooth.csv', names=column_names, header=0)
 mdata2.head()
 
+mdata['date'] = pandas.to_datetime(mdata['date'])
+mdata2['date'] = pandas.to_datetime(mdata2['date'])
 mdata.set_index('date', inplace=True)
 mdata2.set_index('date', inplace=True)
 
-#history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH', 'searches1', 'searches2']].values
-history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH']].values
+history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH', 'searches1', 'searches2']].values
+
 scaler = MinMaxScaler()
 history_scaled = scaler.fit_transform(history)
 
@@ -87,7 +89,7 @@ class LSTM(nn.Module):
 input_size = X_train.shape[2]
 hidden_size = 64
 num_layers = 2
-output_size = 4
+output_size = 6
 dropout = 0.5   # probability of dropout, so this should be in [0,1]
 lstm_model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
 learning_rate = 0.001
@@ -99,7 +101,7 @@ criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(lstm_model.parameters(), lr=learning_rate)
 
 
-lstm_model.load_state_dict(torch.load('model/backups/withoutSearches.pth', weights_only=True))
+lstm_model.load_state_dict(torch.load('model/backups/withSearches.pth', weights_only=True))
 lstm_model.eval()  # Set to evaluation mode
 print("LSTM model loaded.")
 
@@ -116,7 +118,7 @@ with torch.no_grad():
 # Reshape test outputs to match the input size
 test_outputs_cases_reshaped = test_outputs_cases.reshape(-1, 1)
 # Inverse transform only the 'Cases' column of the scaled data
-lstm_predictions = scaler.inverse_transform(numpy.hstack([test_outputs_cases_reshaped, numpy.zeros((test_outputs_cases_reshaped.shape[0], 3))]))[:, 0]
+lstm_predictions = scaler.inverse_transform(numpy.hstack([test_outputs_cases_reshaped, numpy.zeros((test_outputs_cases_reshaped.shape[0], 5))]))[:, 0]
 
 # holt winters es =============================================================================================================
 mdata2.index.freq = 'D'
@@ -134,7 +136,7 @@ hw_predictions = hw_predictions[:-30]
 
 # =============================================================================================================================
 
-ensembleMAE = lstm_predictions[:-21] * 0.97028 + hw_predictions * (1-0.97028)
+ensembleMAE = lstm_predictions[:-21] * 1 + hw_predictions * (1-1)
 ensembleMSE = lstm_predictions[:-21] * 0.95629 + hw_predictions * (1-0.95629)
 
 mae1 = mean_absolute_error(hw_test[:-30], ensembleMAE)
@@ -145,9 +147,23 @@ mae2 = mean_absolute_error(hw_test[:-30], ensembleMSE)
 mse2 = mean_squared_error(hw_test[:-30], ensembleMSE)
 rmse2 = numpy.sqrt(mse2)
 
-# forecasting ==================================================================================================================
+# forecasting =======================================================================================================
 
+num_forecast_steps = 500
+sequence_to_plot = X_test.squeeze().cpu().numpy()
+historical_data = sequence_to_plot[-1]
 
+forecasted_values = []
+with torch.no_grad():
+    for _ in range(num_forecast_steps):
+        historical_data_tensor = torch.as_tensor(historical_data).float().unsqueeze(0)
+        predicted_value = lstm_model(historical_data_tensor).numpy()[0, 0]
+        forecasted_values.append(predicted_value)
+        historical_data = numpy.roll(historical_data, shift=-1)
+        historical_data[-1] = predicted_value
+
+last_date = mdata.index[-1]
+future_dates = pandas.date_range(start=last_date + pandas.DateOffset(1), periods=num_forecast_steps)
 
 # Code for checking which proportion of LSTM/H-W ES is best ====================================================================
 # this found that:
@@ -196,6 +212,12 @@ print(f"MSE optimized model: {rmse2}")
 print("==========================")
 print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
+target_index = mdata.columns.get_loc('Cases')
+target_min = scaler.data_min_[target_index]
+target_max = scaler.data_max_[target_index]
+forecasted_cases = numpy.array(forecasted_values) * (target_max - target_min) + target_min
+
+plt.plot(mdata['Cases'], label="True Values")
 hw_test.plot(legend=True, label='TEST')
 #hw_predictions.plot(legend=True, label='HOLT WINTERS')
 #lstm_predictions = pandas.Series(ensemble1, index=hw_test.index)
@@ -203,13 +225,14 @@ hw_test.plot(legend=True, label='TEST')
 #ensemble1.plot(legend=True, label='ENSEMBLE 1')
 ensembleMAE.plot(legend=True, label='MODEL 1')
 ensembleMSE.plot(legend=True, label='MODEL 2')
+
+plt.plot(
+    mdata.index[-1:].append(future_dates), 
+    numpy.concatenate([mdata['Cases'][-1:].values, forecasted_cases]),
+    label='forecasted values', 
+    color='red'
+)
+
 #plt.plot(lstm_forecast, label="Predicted")
 plt.legend()
-plt.show()
-plt.xlabel('Date')
-plt.ylabel('Dengue Case Count')
-# ensembleModels[bestMAE].plot(legend=True, label="BEST MAE")
-# ensembleModels[worstMAE].plot(legend=True, label="WORST MAE")
-
-plt.title('Ensemble Comparison')
 plt.show()
