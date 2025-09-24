@@ -3,6 +3,7 @@ from sklearn.preprocessing import MinMaxScaler
 import pandas
 import numpy
 import torch
+import joblib
 import torch.nn as nn
 import math
 from sklearn.metrics import mean_absolute_error,mean_squared_error
@@ -18,10 +19,13 @@ device
 # https://medium.com/@mike.roweprediger/using-pytorch-to-train-an-lstm-forecasting-model-e5a04b6e0e67
 # data processing ===================================================================================================
 column_names = ['date','Cases','Rainfall','Temperature','RH','searches1','searches2']
-mdata = pandas.read_csv('data/historical/csv_files/finalSmooth.csv', names=column_names, header=0)
+mdata = pandas.read_csv('data/historical/csv_files/websiteSmooth.csv', names=column_names, header=0)
 mdata.head()
 mdata['date'] = pandas.to_datetime(mdata['date'])
 mdata.set_index('date', inplace=True)
+
+np_float_list = list(mdata['Cases'].values)
+python_float_list = [float(x) for x in np_float_list]
 
 history = mdata[['Cases', 'Rainfall', 'Temperature', 'RH', 'searches1', 'searches2']].values
 
@@ -37,13 +41,15 @@ def create_sequences(data, seq_length):
         ys.append(y)
     return numpy.array(xs), numpy.array(ys)
 
-seq_length = 30
+seq_length = 10
 target_index = mdata.columns.get_loc('Cases')
 X, y = create_sequences(history_scaled, seq_length)  # Use scaled data
 
 train_size = int(len(y) * 0.7)
 X_train, X_test = X[:train_size], X[train_size:]
 y_train, y_test = y[:train_size], y[train_size:]
+
+actual_cases = python_float_list[train_size:]
 
 X_train = torch.from_numpy(X_train).float()
 y_train = torch.from_numpy(y_train).float()
@@ -83,8 +89,8 @@ num_layers = 2
 output_size = 6
 dropout = 0.5   # probability of dropout, so this should be in [0,1]
 model = LSTM(input_size, hidden_size, num_layers, output_size, dropout)
-learning_rate = 0.001
-num_epochs = 180
+learning_rate = 0.01
+num_epochs = 100
 
 # tracking loss  ====================================================================================================
 criterion = nn.MSELoss()
@@ -156,16 +162,16 @@ all_outputs = numpy.concatenate((train_outputs_cases, test_outputs_cases))
 
 
 test_start_index = len(history_scaled) - len(y_test) - seq_length
+torch.save(model.state_dict(), "model/backups/model4.pth")
 
-torch.save(model.state_dict(), "model/forecasting_test1.pth")
+# mae = mean_absolute_error(y_test.numpy(), test_outputs)
+# mse = mean_squared_error(y_test.numpy(), test_outputs_cases)
 
-mae = mean_absolute_error(y_test.numpy(), test_outputs)
-mse = mean_squared_error(y_test.numpy(), test_outputs)
-rmse = numpy.sqrt(mse)
+# rmse = numpy.sqrt(mse)
 
 # forecasting =======================================================================================================
 
-num_forecast_steps = 500
+num_forecast_steps = 30
 sequence_to_plot = X_test.squeeze().cpu().numpy()
 historical_data = sequence_to_plot[-1]
 
@@ -184,23 +190,26 @@ future_dates = pandas.date_range(start=last_date + pandas.DateOffset(1), periods
 
 # for testing =======================================================================================================
 
-print("==========================")
-print(f"MAE: {mae}")
-print(f"MSE: {mse}")
-print(f"RMSE: {rmse}")
-print("==========================")
-print(f'Mean of Cases: {mdata["Cases"].mean()}')
+# print("==========================")
+# print(f"MAE: {mae}")
+# print(f"MSE: {mse}")
+# print(f"RMSE: {rmse}")
+# print("==========================")
+# print(f'Mean of Cases: {mdata["Cases"].mean()}')
 
 history_scaled_cases = history_scaled[:, 0]
 
 test_outputs_cases_reshaped = test_outputs_cases.reshape(-1, 1)
-# Inverse transform only the 'Cases' column of the scaled data
 lstm_predictions = scaler.inverse_transform(numpy.hstack([test_outputs_cases_reshaped, numpy.zeros((test_outputs_cases_reshaped.shape[0], 5))]))[:, 0]
 
 target_index = mdata.columns.get_loc('Cases')
 target_min = scaler.data_min_[target_index]
 target_max = scaler.data_max_[target_index]
 forecasted_cases = numpy.array(forecasted_values) * (target_max - target_min) + target_min
+
+print(forecasted_cases)
+
+print(f'RMSE: { numpy.sqrt(mean_squared_error(actual_cases[seq_length:], lstm_predictions)) }')
 
 
 # Plot the true values

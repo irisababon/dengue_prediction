@@ -12,16 +12,16 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.holtwinters import SimpleExpSmoothing, ExponentialSmoothing
 
 # Load the data
-column_names = ['date', 'YEAR', 'MONTH', 'DAY', 'RAINFALL', 'TMAX', 'TMIN', 'TMEAN', 'WIND_SPEED', 'WIND_DIRECTION', 'RH', 'dengue', 'Cases', 'searches']
-mdata = pandas.read_csv('data/historical/csv_files/final.csv', names=column_names, header=0)
+column_names = ['date','RAINFALL','TMEAN','RH','Cases','dengue','dengue_symptoms']
+mdata = pandas.read_csv('data/historical/csv_files/website.csv', names=column_names, header=0)
 mdata.head()
 
 mdata['Cases_Smooth'] = ExponentialSmoothing(mdata['Cases'], trend='add', seasonal='add', seasonal_periods=12).fit().fittedvalues
 mdata['Rainfall_Smooth'] = ExponentialSmoothing(mdata['RAINFALL'], trend='add', seasonal='add', seasonal_periods=12).fit().fittedvalues
 mdata['Temperature_Smooth'] = ExponentialSmoothing(mdata['TMEAN'], trend='add', seasonal='add', seasonal_periods=12).fit().fittedvalues
 mdata['RH_Smooth'] = ExponentialSmoothing(mdata['RH'], trend='add', seasonal='add', seasonal_periods=12).fit().fittedvalues
-mdata['searches1_Smooth'] = ExponentialSmoothing(mdata['dengue'], trend='add', seasonal='add', seasonal_periods=12).fit().fittedvalues
-mdata['searches2_Smooth'] = ExponentialSmoothing(mdata['searches'], trend='add', seasonal='add', seasonal_periods=12).fit().fittedvalues
+mdata['dengue_smooth'] = ExponentialSmoothing(mdata['dengue'], trend='add', seasonal='add', seasonal_periods=12).fit().fittedvalues
+mdata['dengueSymptoms_smooth'] = ExponentialSmoothing(mdata['dengue_symptoms'], trend='add', seasonal='add', seasonal_periods=12).fit().fittedvalues
 
 mdata.set_index('date', inplace=True)
 
@@ -29,10 +29,10 @@ mdataSmooth = pandas.DataFrame({'Cases': mdata['Cases_Smooth'],
                                 'Rainfall': mdata['Rainfall_Smooth'],
                                 'Temperature': mdata['Temperature_Smooth'],
                                 'RH': mdata['RH_Smooth'],
-                                'searches1': mdata['searches1_Smooth'],
-                                'searches2': mdata['searches2_Smooth']})
+                                'dengue': mdata['dengue_smooth'],
+                                'dengueSymptoms': mdata['dengueSymptoms_smooth']})
 
-mdataSmooth.to_csv('data/historical/csv_files/finalSmooth.csv')
+mdataSmooth.to_csv('data/historical/csv_files/websiteSmooth.csv')
 
 plt.show()
 
